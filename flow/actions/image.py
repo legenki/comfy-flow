@@ -18,6 +18,22 @@ def generate_image(page: Page, prompt: str, model: str) -> str:
     """
     Automates the generation of an image in Google Flow.
     """
+    # 0. If we are on the projects page, click "New project" or "Create"
+    try:
+        # Try to find a 'New project' or 'Create new' button
+        new_project_btn = page.get_by_text("New project", exact=False).first
+        if new_project_btn.is_visible(timeout=3000):
+            new_project_btn.click()
+            page.wait_for_timeout(2000)
+        else:
+            # Maybe it's just "Create"
+            create_btn = page.get_by_role("button", name="Create").first
+            if create_btn.is_visible(timeout=1000):
+                create_btn.click()
+                page.wait_for_timeout(2000)
+    except Exception:
+        pass
+
     # 1. Select model if applicable (Placeholder for UI interaction)
     if model:
         try:
