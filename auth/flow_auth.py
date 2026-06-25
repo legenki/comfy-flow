@@ -86,11 +86,13 @@ def _ensure_session_task(worker: PlaywrightWorker):
     if getattr(worker, "context", None):
         try:
             worker.context.close()
+            time.sleep(1)
         except:
             pass
     if getattr(worker, "browser", None):
         try:
             worker.browser.close()
+            time.sleep(1)
         except:
             pass
 
@@ -106,6 +108,7 @@ def _ensure_session_task(worker: PlaywrightWorker):
     if worker.context:
         try:
             worker.context.close()
+            time.sleep(1.5)  # Wait for chromium process to fully exit to avoid cache corruption
         except:
             pass
             
@@ -139,10 +142,8 @@ def _launch_persistent(worker: PlaywrightWorker, headless: bool):
         # Deep cleanup of cache if corrupted
         try:
             import shutil
-            cache_dir = os.path.join(worker.user_data_dir, "Default", "Cache")
-            if os.path.exists(cache_dir): shutil.rmtree(cache_dir)
-            lock_file = os.path.join(worker.user_data_dir, 'SingletonLock')
-            if os.path.exists(lock_file): os.remove(lock_file)
+            shutil.rmtree(worker.user_data_dir, ignore_errors=True)
+            time.sleep(1)
         except: pass
         
         # Try again
