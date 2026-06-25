@@ -97,7 +97,7 @@ def _ensure_session_task(worker: PlaywrightWorker):
             pass
 
     print("[ComfyUI-GoogleFlow] Starting Playwright in HEADLESS mode...")
-    _launch_persistent(worker, headless=True)
+    _launch_persistent(worker, is_headless=True)
     
     is_logged_in = _check_login(worker.page, wait_for_manual=False)
     if is_logged_in:
@@ -112,7 +112,7 @@ def _ensure_session_task(worker: PlaywrightWorker):
         except:
             pass
             
-    _launch_persistent(worker, headless=False)
+    _launch_persistent(worker, is_headless=False)
     
     print("[ComfyUI-GoogleFlow] Please log in to Google Flow in the opened browser window.")
     is_logged_in = _check_login(worker.page, wait_for_manual=True)
@@ -123,17 +123,21 @@ def _ensure_session_task(worker: PlaywrightWorker):
     else:
         raise Exception("❌ Failed to authenticate to Google Flow.")
 
-def _launch_persistent(worker: PlaywrightWorker, headless: bool):
+def _launch_persistent(worker: PlaywrightWorker, is_headless: bool):
     context_args = {
         "viewport": {"width": 1280, "height": 800},
         "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
+    
+    args = ["--disable-blink-features=AutomationControlled"]
+    if is_headless:
+        args.append("--headless=new")
         
     try:
         worker.context = worker.playwright.chromium.launch_persistent_context(
             user_data_dir=worker.user_data_dir,
-            headless=headless,
-            args=["--disable-blink-features=AutomationControlled"],
+            headless=False,
+            args=args,
             **context_args
         )
         worker.page = worker.context.pages[0] if worker.context.pages else worker.context.new_page()
@@ -149,8 +153,8 @@ def _launch_persistent(worker: PlaywrightWorker, headless: bool):
         # Try again
         worker.context = worker.playwright.chromium.launch_persistent_context(
             user_data_dir=worker.user_data_dir,
-            headless=headless,
-            args=["--disable-blink-features=AutomationControlled"],
+            headless=False,
+            args=args,
             **context_args
         )
         worker.page = worker.context.pages[0] if worker.context.pages else worker.context.new_page()
