@@ -28,8 +28,9 @@ class PlaywrightWorker:
             self.playwright = p
             self.context = None
             self.page = None
+            self.browser = None
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            self.user_data_dir = os.path.join(os.path.dirname(current_dir), "..", "user_data", "flow_context")
+            self.storage_state_file = os.path.join(os.path.dirname(current_dir), "..", "user_data", "flow_state.json")
             
             while True:
                 task = self.task_queue.get()
@@ -54,7 +55,6 @@ class PlaywrightWorker:
         return result
 
 def _ensure_session_task(worker: PlaywrightWorker):
-    import time
     if worker.page and not worker.page.is_closed():
         try:
             if FLOW_URL in worker.page.url:
@@ -65,43 +65,57 @@ def _ensure_session_task(worker: PlaywrightWorker):
         except Exception:
             pass
 
-    if worker.context:
+    if getattr(worker, "context", None):
         try:
             worker.context.close()
-            time.sleep(1)
+        except:
+            pass
+    if getattr(worker, "browser", None):
+        try:
+            worker.browser.close()
         except:
             pass
 
     print("[ComfyUI-GoogleFlow] Starting Playwright in HEADLESS mode...")
-    worker.context = worker.playwright.chromium.launch_persistent_context(
-        user_data_dir=worker.user_data_dir,
+    worker.browser = worker.playwright.chromium.launch(
         headless=True,
         args=["--disable-blink-features=AutomationControlled"]
     )
-    worker.page = worker.context.new_page() if len(worker.context.pages) == 0 else worker.context.pages[0]
+    
+    context_args = {}
+    if os.path.exists(worker.storage_state_file):
+        context_args["storage_state"] = worker.storage_state_file
+
+    worker.context = worker.browser.new_context(**context_args)
+    worker.page = worker.context.new_page()
     
     is_logged_in = _check_login(worker.page)
     if is_logged_in:
         print("[ComfyUI-GoogleFlow] Successfully authenticated in headless mode.")
+        os.makedirs(os.path.dirname(worker.storage_state_file), exist_ok=True)
+        worker.context.storage_state(path=worker.storage_state_file)
         return True
     
     print("[ComfyUI-GoogleFlow] Authentication required. Relaunching in HEADED mode for manual login.")
     worker.context.close()
-    time.sleep(2) # Wait for file locks to release
+    worker.browser.close()
     
-    worker.context = worker.playwright.chromium.launch_persistent_context(
-        user_data_dir=worker.user_data_dir,
+    worker.browser = worker.playwright.chromium.launch(
         headless=False,
         args=["--disable-blink-features=AutomationControlled"]
     )
-    worker.page = worker.context.new_page() if len(worker.context.pages) == 0 else worker.context.pages[0]
+    worker.context = worker.browser.new_context(**context_args)
+    worker.page = worker.context.new_page()
     
     print("[ComfyUI-GoogleFlow] Please log in to Google Flow in the opened browser window.")
     is_logged_in = _check_login(worker.page, wait_for_manual=True)
     
     if is_logged_in:
         print("[ComfyUI-GoogleFlow] Successfully authenticated manually.")
+        os.makedirs(os.path.dirname(worker.storage_state_file), exist_ok=True)
+        worker.context.storage_state(path=worker.storage_state_file)
         worker.context.close()
+        worker.browser.close()
         raise Exception("✅ Авторизация успешна! Пожалуйста, нажми 'Queue Prompt' еще раз для генерации изображения.")
     else:
         raise Exception("❌ Failed to authenticate to Google Flow.")
