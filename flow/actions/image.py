@@ -176,7 +176,13 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, a
     except Exception as e:
         print(f"[ComfyUI-GoogleFlow] Warning: Could not set aspect ratio. Error: {e}")
         
-    # 2. Upload reference image
+    # 2. Enter instruction FIRST so we don't overwrite the image chip later
+    prompt_input = page.locator("[contenteditable='true']").first
+    print(f"[ComfyUI-GoogleFlow] Entering edit instruction: {instruction}")
+    prompt_input.fill(instruction)
+    page.wait_for_timeout(500)
+    
+    # 3. Upload reference image and add to prompt
     try:
         # Playwright can set files on hidden file inputs
         page.locator("input[type='file']").first.set_input_files(image_path, timeout=3000)
@@ -207,9 +213,7 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, a
     except Exception as e:
         print(f"[ComfyUI-GoogleFlow] Warning: Could not upload file: {e}")
     
-    # 3. Set strength slider if applicable (Placeholder)
-    
-    # Count existing images before generating
+    # 4. Count existing images before generating
     print("[ComfyUI-GoogleFlow] Waiting for project images to settle...")
     last_count = -1
     for _ in range(10):
@@ -223,11 +227,8 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, a
     initial_count = len(existing_images)
     print(f"[ComfyUI-GoogleFlow] Initial image count: {initial_count}")
     
-    # 4. Enter instruction
-    prompt_input = page.locator("[contenteditable='true']").first
-    print(f"[ComfyUI-GoogleFlow] Entering edit instruction: {instruction}")
-    prompt_input.fill(instruction)
-    page.wait_for_timeout(500)
+    # 5. Press Enter to generate!
+    prompt_input.focus()
     prompt_input.press("Enter")
     
     # Try to click the Create button just in case Enter didn't work
