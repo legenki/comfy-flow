@@ -7,14 +7,14 @@ class FlowClient:
         self.worker = PlaywrightWorker()
         self.worker.execute(_ensure_session_task)
 
-    def generate_image(self, prompt: str, model: str):
+    def generate_image(self, prompt: str, aspect_ratio: str):
         def _task(worker):
-            return generate_image(worker.page, prompt, model)
+            return generate_image(worker.page, prompt, aspect_ratio)
         return self.worker.execute(_task)
 
-    def edit_image(self, image_path: str, instruction: str, strength: float, model: str):
+    def edit_image(self, image_path: str, instruction: str, strength: float, aspect_ratio: str):
         def _task(worker):
-            return edit_image(worker.page, image_path, instruction, strength, model)
+            return edit_image(worker.page, image_path, instruction, strength, aspect_ratio)
         return self.worker.execute(_task)
 
     def agent_step(self, image_path: str, instruction: str, context: str, model: str):

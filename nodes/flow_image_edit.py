@@ -13,7 +13,7 @@ class FlowImageEdit:
                 "image": ("IMAGE",),
                 "instruction": ("STRING", {"multiline": True}),
                 "strength": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "model": (["Nano Banana", "Gemini Omni"], {"default": "Nano Banana"}),
+                "aspect_ratio": (["16:9", "4:3", "1:1", "3:4", "9:16"], {"default": "1:1"}),
             }
         }
 
@@ -22,7 +22,7 @@ class FlowImageEdit:
     FUNCTION = "edit"
     CATEGORY = "Google Flow"
 
-    def edit(self, image, instruction, strength, model):
+    def edit(self, image, instruction, strength, aspect_ratio):
         client = FlowClient()
         
         # Convert ComfyUI tensor to PIL Image and save to a temp file
@@ -33,15 +33,20 @@ class FlowImageEdit:
         input_path = f"/tmp/flow_input_{int(time.time())}.png"
         img_pil.save(input_path)
         
-        output_path, info = client.edit_image(input_path, instruction, strength, model)
+        output_paths, info = client.edit_image(input_path, instruction, strength, aspect_ratio)
         
-        # Convert returned image back to tensor
-        res_img = Image.open(output_path).convert("RGB")
-        res_np = np.array(res_img).astype(np.float32) / 255.0
-        res_tensor = torch.from_numpy(res_np)[None,]
+        # Convert all returned images back to a batch tensor
+        tensors = []
+        for path in output_paths:
+            res_img = Image.open(path).convert("RGB")
+            res_np = np.array(res_img).astype(np.float32) / 255.0
+            res_tensor = torch.from_numpy(res_np)[None,]
+            tensors.append(res_tensor)
+            
+        batch_tensor = torch.cat(tensors, dim=0)
         
         # Cleanup input
         if os.path.exists(input_path):
             os.remove(input_path)
             
-        return (res_tensor, info)
+        return (batch_tensor, info)

@@ -9,7 +9,7 @@ class FlowImageGenerate:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": (["Nano Banana", "Gemini Omni", "Veo 3.1"], {"default": "Nano Banana"}),
+                "aspect_ratio": (["16:9", "4:3", "1:1", "3:4", "9:16"], {"default": "1:1"}),
             }
         }
 
@@ -17,13 +17,18 @@ class FlowImageGenerate:
     FUNCTION = "generate"
     CATEGORY = "Google Flow"
 
-    def generate(self, prompt, model):
+    def generate(self, prompt, aspect_ratio):
         client = FlowClient()
-        output_path = client.generate_image(prompt, model)
+        output_paths = client.generate_image(prompt, aspect_ratio)
         
-        # Convert saved image to ComfyUI tensor
-        img = Image.open(output_path).convert("RGB")
-        img_np = np.array(img).astype(np.float32) / 255.0
-        img_tensor = torch.from_numpy(img_np)[None,]
+        # Convert all saved images to ComfyUI tensors and stack them into a batch
+        tensors = []
+        for path in output_paths:
+            img = Image.open(path).convert("RGB")
+            img_np = np.array(img).astype(np.float32) / 255.0
+            img_tensor = torch.from_numpy(img_np)[None,]
+            tensors.append(img_tensor)
+            
+        batch_tensor = torch.cat(tensors, dim=0)
         
-        return (img_tensor,)
+        return (batch_tensor,)
