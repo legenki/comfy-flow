@@ -11,11 +11,23 @@ def _wait_for_generation(page: Page, initial_image_count: int) -> list:
     while time.time() - start_time < 120:
         page.wait_for_timeout(2000)
         current_images = page.locator("img[src*='getMediaUrlRedirect']").all()
-        if len(current_images) > initial_image_count:
-            print(f"[ComfyUI-GoogleFlow] Generation complete! Found {len(current_images) - initial_image_count} new images.")
-            # Give it a few seconds to fully render on the server side
-            page.wait_for_timeout(4000)
-            return current_images
+        current_count = len(current_images)
+        if current_count > initial_image_count:
+            print(f"[ComfyUI-GoogleFlow] Image count increased to {current_count}. Waiting for generation to finish settling...")
+            
+            # Let it settle to ensure all new images (e.g. 2 or 4) are fully loaded
+            last_final_count = current_count
+            for _ in range(10):
+                page.wait_for_timeout(2000)
+                new_final_count = len(page.locator("img[src*='getMediaUrlRedirect']").all())
+                if new_final_count == last_final_count:
+                    break
+                last_final_count = new_final_count
+                
+            final_images = page.locator("img[src*='getMediaUrlRedirect']").all()
+            print(f"[ComfyUI-GoogleFlow] Generation complete! Found {len(final_images) - initial_image_count} new images.")
+            return final_images
+            
     raise Exception("Timeout waiting for image generation to complete.")
 
 def _ensure_project(page: Page):
@@ -85,14 +97,32 @@ def generate_image(page: Page, prompt: str, aspect_ratio: str) -> list[str]:
         print(f"[ComfyUI-GoogleFlow] Warning: Could not set aspect ratio. Error: {e}")
             
     # Count existing images before generating
+    print("[ComfyUI-GoogleFlow] Waiting for project images to settle...")
+    last_count = -1
+    for _ in range(10):
+        current_count = len(page.locator("img[src*='getMediaUrlRedirect']").all())
+        if current_count == last_count:
+            break
+        last_count = current_count
+        page.wait_for_timeout(1000)
+        
     existing_images = page.locator("img[src*='getMediaUrlRedirect']").all()
     initial_count = len(existing_images)
+    print(f"[ComfyUI-GoogleFlow] Initial image count: {initial_count}")
     
     # 2. Enter prompt
     print(f"[ComfyUI-GoogleFlow] Entering prompt: {prompt}")
     prompt_input.fill(prompt)
     page.wait_for_timeout(500)
     prompt_input.press("Enter")
+    
+    # Try to click the Create button just in case Enter didn't work
+    try:
+        create_btn = page.locator("button", has_text="Create").last
+        if create_btn.is_visible(timeout=1000):
+            create_btn.click()
+    except:
+        pass
     
     # 3. Wait for generation to finish
     all_images = _wait_for_generation(page, initial_count)
@@ -158,8 +188,18 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, a
     # 3. Set strength slider if applicable (Placeholder)
     
     # Count existing images before generating
+    print("[ComfyUI-GoogleFlow] Waiting for project images to settle...")
+    last_count = -1
+    for _ in range(10):
+        current_count = len(page.locator("img[src*='getMediaUrlRedirect']").all())
+        if current_count == last_count:
+            break
+        last_count = current_count
+        page.wait_for_timeout(1000)
+        
     existing_images = page.locator("img[src*='getMediaUrlRedirect']").all()
     initial_count = len(existing_images)
+    print(f"[ComfyUI-GoogleFlow] Initial image count: {initial_count}")
     
     # 4. Enter instruction
     prompt_input = page.locator("[contenteditable='true']").first
@@ -167,6 +207,14 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, a
     prompt_input.fill(instruction)
     page.wait_for_timeout(500)
     prompt_input.press("Enter")
+    
+    # Try to click the Create button just in case Enter didn't work
+    try:
+        create_btn = page.locator("button", has_text="Create").last
+        if create_btn.is_visible(timeout=1000):
+            create_btn.click()
+    except:
+        pass
     
     # 5. Wait for generation
     all_images = _wait_for_generation(page, initial_count)
