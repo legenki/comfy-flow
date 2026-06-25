@@ -14,6 +14,7 @@ class FlowImageEdit:
                 "instruction": ("STRING", {"multiline": True}),
                 "strength": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "aspect_ratio": (["16:9", "4:3", "1:1", "3:4", "9:16"], {"default": "1:1"}),
+                "max_images": ("INT", {"default": 4, "min": 1, "max": 4, "step": 1}),
             }
         }
 
@@ -22,7 +23,7 @@ class FlowImageEdit:
     FUNCTION = "edit"
     CATEGORY = "Google Flow"
 
-    def edit(self, image, instruction, strength, aspect_ratio):
+    def edit(self, image, instruction, strength, aspect_ratio, max_images):
         client = FlowClient()
         
         # Convert ComfyUI tensor to PIL Image and save to a temp file
@@ -34,6 +35,7 @@ class FlowImageEdit:
         img_pil.save(input_path)
         
         output_paths, info = client.edit_image(input_path, instruction, strength, aspect_ratio)
+        output_paths = output_paths[:max_images]
         
         # Convert all returned images back to a batch tensor
         tensors = []
