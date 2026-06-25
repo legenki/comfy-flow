@@ -13,7 +13,9 @@ def agent_step(page: Page, image_path: str, instruction: str, context: str, mode
             page.wait_for_timeout(1000)
             
     # 2. Enter instruction & context
-    prompt_input = page.locator("textarea").first
+    prompt_input = page.get_by_placeholder("message", exact=False).first
+    if not prompt_input.is_visible():
+        prompt_input = page.locator("textarea:visible, [contenteditable='true']:visible").first
     
     full_prompt = instruction
     if context:

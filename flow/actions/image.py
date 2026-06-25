@@ -19,10 +19,16 @@ def generate_image(page: Page, prompt: str, model: str) -> str:
     Automates the generation of an image in Google Flow.
     """
     # 1. Select model if applicable (Placeholder for UI interaction)
+    if model:
+        try:
+            page.get_by_text(model, exact=False).last.click(timeout=2000)
+            page.wait_for_timeout(500)
+        except Exception:
+            pass
     # 2. Find prompt input
     prompt_input = page.get_by_placeholder("Describe what you want to see", exact=False).first
     if not prompt_input.is_visible():
-        prompt_input = page.locator("textarea").first
+        prompt_input = page.locator("textarea:visible, [contenteditable='true']:visible").first
     
     prompt_input.fill(prompt)
     prompt_input.press("Enter")
@@ -61,7 +67,7 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, m
     # 3. Enter instruction
     prompt_input = page.get_by_placeholder("Instruction", exact=False).first
     if not prompt_input.is_visible():
-        prompt_input = page.locator("textarea").first
+        prompt_input = page.locator("textarea:visible, [contenteditable='true']:visible").first
         
     prompt_input.fill(instruction)
     prompt_input.press("Enter")

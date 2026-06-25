@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from .nodes.flow_image_generate import FlowImageGenerate
 from .nodes.flow_image_edit import FlowImageEdit
 from .nodes.flow_agent_step import FlowAgentStep
