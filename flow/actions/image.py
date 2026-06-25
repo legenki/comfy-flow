@@ -18,32 +18,50 @@ def _wait_for_generation(page: Page, initial_image_count: int) -> list:
             return current_images
     raise Exception("Timeout waiting for image generation to complete.")
 
+def _ensure_project(page: Page):
+    """
+    Ensures we are inside a project (either the last one or a new one).
+    """
+    prompt_input = page.locator("[contenteditable='true']").first
+    if prompt_input.is_visible(timeout=3000):
+        return
+        
+    print("[ComfyUI-GoogleFlow] Not in a project, trying to find an existing one...")
+    try:
+        project_link = page.locator("a[href^='/fx/tools/flow/project/']").first
+        if project_link.is_visible(timeout=2000):
+            print("[ComfyUI-GoogleFlow] Found an existing project, opening it...")
+            project_link.click()
+            page.wait_for_timeout(3000)
+            return
+    except Exception:
+        pass
+        
+    print("[ComfyUI-GoogleFlow] No existing project found, creating a new one...")
+    try:
+        new_project_btn = page.get_by_text("New project", exact=False).first
+        if new_project_btn.is_visible(timeout=2000):
+            new_project_btn.click()
+            page.wait_for_timeout(2000)
+        else:
+            create_btn = page.get_by_role("button", name="Create").first
+            if create_btn.is_visible(timeout=1000):
+                create_btn.click()
+                page.wait_for_timeout(2000)
+    except Exception:
+        pass
+        
+    if not page.locator("[contenteditable='true']").first.is_visible(timeout=5000):
+        raise Exception("Could not find prompt input area. Are you in a project?")
+
 def generate_image(page: Page, prompt: str, model: str) -> str:
     """
     Automates the generation of an image in Google Flow.
     """
     print("[ComfyUI-GoogleFlow] Starting image generation process...")
-    # 0. Check if we are already in a project (contenteditable div exists)
-    prompt_input = page.locator("[contenteditable='true']").first
+    _ensure_project(page)
     
-    if not prompt_input.is_visible(timeout=3000):
-        print("[ComfyUI-GoogleFlow] Not in a project, trying to create one...")
-        # Try to find a 'New project' or 'Create new' button
-        new_project_btn = page.get_by_text("New project", exact=False).first
-        if new_project_btn.is_visible(timeout=3000):
-            new_project_btn.click()
-            page.wait_for_timeout(2000)
-        else:
-            # Maybe it's just "Create"
-            create_btn = page.get_by_role("button", name="Create").first
-            if create_btn.is_visible(timeout=1000):
-                create_btn.click()
-                page.wait_for_timeout(2000)
-                
-    # Re-locate prompt input
     prompt_input = page.locator("[contenteditable='true']").first
-    if not prompt_input.is_visible(timeout=5000):
-        raise Exception("Could not find prompt input area. Are you in a project?")
 
     # 1. Select model if applicable (Placeholder for UI interaction)
     if model:
@@ -87,13 +105,17 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, m
     """
     Automates the editing of an image in Google Flow.
     """
+    print("[ComfyUI-GoogleFlow] Starting image edit process...")
+    _ensure_project(page)
+    
     # 1. Upload reference image
-    file_input = page.locator("input[type='file']").first
-    if file_input.is_visible():
-        file_input.set_input_files(image_path)
-        page.wait_for_timeout(1000)
-    else:
-        print("[ComfyUI-GoogleFlow] Warning: Could not find file upload input.")
+    try:
+        # Playwright can set files on hidden file inputs
+        page.locator("input[type='file']").first.set_input_files(image_path, timeout=3000)
+        print(f"[ComfyUI-GoogleFlow] Uploaded reference image: {image_path}")
+        page.wait_for_timeout(2000)
+    except Exception as e:
+        print(f"[ComfyUI-GoogleFlow] Warning: Could not upload file: {e}")
     
     # 2. Set strength slider if applicable (Placeholder)
     
@@ -103,9 +125,7 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, m
     
     # 3. Enter instruction
     prompt_input = page.locator("[contenteditable='true']").first
-    if not prompt_input.is_visible(timeout=5000):
-        raise Exception("Could not find prompt input area.")
-        
+    print(f"[ComfyUI-GoogleFlow] Entering edit instruction: {instruction}")
     prompt_input.fill(instruction)
     page.wait_for_timeout(500)
     prompt_input.press("Enter")
