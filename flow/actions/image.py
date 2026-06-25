@@ -13,8 +13,8 @@ def _wait_for_generation(page: Page, initial_image_count: int) -> list:
         current_images = page.locator("img[src*='getMediaUrlRedirect']").all()
         if len(current_images) > initial_image_count:
             print(f"[ComfyUI-GoogleFlow] Generation complete! Found {len(current_images) - initial_image_count} new images.")
-            # Give it a second to fully render
-            page.wait_for_timeout(2000)
+            # Give it a few seconds to fully render on the server side
+            page.wait_for_timeout(4000)
             return current_images
     raise Exception("Timeout waiting for image generation to complete.")
 
@@ -69,9 +69,16 @@ def generate_image(page: Page, prompt: str, model: str) -> str:
     # 4. Extract generated image
     if all_images:
         img_element = all_images[-1] # Get the latest one
+        src = img_element.get_attribute("src")
+        url = "https://labs.google" + src if src.startswith("/") else src
+        
         output_path = f"/tmp/flow_gen_{int(time.time())}.png"
-        print(f"[ComfyUI-GoogleFlow] Saving generated image to {output_path}...")
-        img_element.screenshot(path=output_path)
+        print(f"[ComfyUI-GoogleFlow] Downloading high-res image to {output_path}...")
+        
+        res = page.request.get(url)
+        with open(output_path, "wb") as f:
+            f.write(res.body())
+            
         return output_path
         
     raise Exception("Failed to find generated image on the page.")
@@ -109,8 +116,16 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, m
     # 5. Extract edited image
     if all_images:
         img_element = all_images[-1]
+        src = img_element.get_attribute("src")
+        url = "https://labs.google" + src if src.startswith("/") else src
+        
         output_path = f"/tmp/flow_edit_{int(time.time())}.png"
-        img_element.screenshot(path=output_path)
+        print(f"[ComfyUI-GoogleFlow] Downloading high-res edited image to {output_path}...")
+        
+        res = page.request.get(url)
+        with open(output_path, "wb") as f:
+            f.write(res.body())
+            
         return output_path, "Edited successfully"
         
     raise Exception("Failed to find edited image on the page.")
