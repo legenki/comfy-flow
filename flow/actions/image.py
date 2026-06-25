@@ -181,7 +181,29 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, a
         # Playwright can set files on hidden file inputs
         page.locator("input[type='file']").first.set_input_files(image_path, timeout=3000)
         print(f"[ComfyUI-GoogleFlow] Uploaded reference image: {image_path}")
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(3000)
+        
+        # We must explicitly click "Add to prompt" on the newly uploaded image!
+        images = page.locator("img[src*='getMediaUrlRedirect']").all()
+        if images:
+            last_img = images[-1]
+            last_img.hover()
+            page.wait_for_timeout(1000)
+            
+            parent = last_img.locator("xpath=../..")
+            more_btn = parent.locator("button", has_text="More").first
+            if not more_btn.is_visible():
+                more_btn = parent.locator("button[aria-label='More']").first
+                
+            if more_btn.is_visible():
+                more_btn.click()
+                page.wait_for_timeout(1000)
+                
+                add_to_prompt_btn = page.get_by_role("menuitem", name="Add to prompt").first
+                if add_to_prompt_btn.is_visible():
+                    add_to_prompt_btn.click()
+                    print("[ComfyUI-GoogleFlow] Added uploaded image to prompt.")
+                    page.wait_for_timeout(1000)
     except Exception as e:
         print(f"[ComfyUI-GoogleFlow] Warning: Could not upload file: {e}")
     
