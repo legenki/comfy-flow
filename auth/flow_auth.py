@@ -145,7 +145,7 @@ def _navigate_past_landing_page(page: Page):
 def _check_login(page: Page, wait_for_manual=False) -> bool:
     try:
         page.goto(FLOW_URL, timeout=60000)
-        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(3000)
         
         # We might be on the landing page, so we must click the button first to see if it redirects to login
         if not wait_for_manual:
@@ -159,7 +159,7 @@ def _check_login(page: Page, wait_for_manual=False) -> bool:
                 try:
                     # Wait until the URL changes back to something else
                     page.wait_for_url(lambda url: "accounts.google.com" not in url and "signin" not in url, timeout=300000)
-                    page.wait_for_load_state("networkidle")
+                    page.wait_for_timeout(3000)
                     _navigate_past_landing_page(page)
                     return True
                 except Exception as e:
