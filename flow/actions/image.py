@@ -1,25 +1,33 @@
 import time
 from playwright.sync_api import Page
 
-def _wait_for_generation(page: Page):
+def _wait_for_generation(page: Page, initial_image_count: int) -> list:
     """
-    Helper function to wait for the generation process to complete.
-    This is highly dependent on the Google Flow DOM structure.
+    Helper function to wait for the generation process to complete by checking
+    if new images with 'getMediaUrlRedirect' have been added to the DOM.
     """
-    page.wait_for_timeout(2000) # Give UI time to react
-    try:
-        # Assuming there is a progress bar or loading spinner that we wait to detach
-        page.wait_for_selector("progressbar", state="detached", timeout=120000)
-    except Exception:
-        pass
-    page.wait_for_timeout(2000) # Buffer after loading
+    print(f"[ComfyUI-GoogleFlow] Waiting for generation... (initial images: {initial_image_count})")
+    start_time = time.time()
+    while time.time() - start_time < 120:
+        page.wait_for_timeout(2000)
+        current_images = page.locator("img[src*='getMediaUrlRedirect']").all()
+        if len(current_images) > initial_image_count:
+            print(f"[ComfyUI-GoogleFlow] Generation complete! Found {len(current_images) - initial_image_count} new images.")
+            # Give it a second to fully render
+            page.wait_for_timeout(2000)
+            return current_images
+    raise Exception("Timeout waiting for image generation to complete.")
 
 def generate_image(page: Page, prompt: str, model: str) -> str:
     """
     Automates the generation of an image in Google Flow.
     """
-    # 0. If we are on the projects page, click "New project" or "Create"
-    try:
+    print("[ComfyUI-GoogleFlow] Starting image generation process...")
+    # 0. Check if we are already in a project (contenteditable div exists)
+    prompt_input = page.locator("[contenteditable='true']").first
+    
+    if not prompt_input.is_visible(timeout=3000):
+        print("[ComfyUI-GoogleFlow] Not in a project, trying to create one...")
         # Try to find a 'New project' or 'Create new' button
         new_project_btn = page.get_by_text("New project", exact=False).first
         if new_project_btn.is_visible(timeout=3000):
@@ -31,8 +39,11 @@ def generate_image(page: Page, prompt: str, model: str) -> str:
             if create_btn.is_visible(timeout=1000):
                 create_btn.click()
                 page.wait_for_timeout(2000)
-    except Exception:
-        pass
+                
+    # Re-locate prompt input
+    prompt_input = page.locator("[contenteditable='true']").first
+    if not prompt_input.is_visible(timeout=5000):
+        raise Exception("Could not find prompt input area. Are you in a project?")
 
     # 1. Select model if applicable (Placeholder for UI interaction)
     if model:
@@ -41,26 +52,25 @@ def generate_image(page: Page, prompt: str, model: str) -> str:
             page.wait_for_timeout(500)
         except Exception:
             pass
-    # 2. Find prompt input
-    prompt_input = page.get_by_placeholder("Describe what you want to see", exact=False).first
-    if not prompt_input.is_visible():
-        prompt_input = page.locator("textarea:visible, [contenteditable='true']:visible").first
+            
+    # Count existing images before generating
+    existing_images = page.locator("img[src*='getMediaUrlRedirect']").all()
+    initial_count = len(existing_images)
     
+    # 2. Enter prompt
+    print(f"[ComfyUI-GoogleFlow] Entering prompt: {prompt}")
     prompt_input.fill(prompt)
+    page.wait_for_timeout(500)
     prompt_input.press("Enter")
     
     # 3. Wait for generation to finish
-    _wait_for_generation(page)
+    all_images = _wait_for_generation(page, initial_count)
     
     # 4. Extract generated image
-    # Assuming the most recently added image is the generated one
-    images = page.locator("img[src^='blob:']").all() 
-    if not images:
-        images = page.locator("img").all()
-        
-    if images:
-        img_element = images[-1]
+    if all_images:
+        img_element = all_images[-1] # Get the latest one
         output_path = f"/tmp/flow_gen_{int(time.time())}.png"
+        print(f"[ComfyUI-GoogleFlow] Saving generated image to {output_path}...")
         img_element.screenshot(path=output_path)
         return output_path
         
@@ -80,21 +90,25 @@ def edit_image(page: Page, image_path: str, instruction: str, strength: float, m
     
     # 2. Set strength slider if applicable (Placeholder)
     
+    # Count existing images before generating
+    existing_images = page.locator("img[src*='getMediaUrlRedirect']").all()
+    initial_count = len(existing_images)
+    
     # 3. Enter instruction
-    prompt_input = page.get_by_placeholder("Instruction", exact=False).first
-    if not prompt_input.is_visible():
-        prompt_input = page.locator("textarea:visible, [contenteditable='true']:visible").first
+    prompt_input = page.locator("[contenteditable='true']").first
+    if not prompt_input.is_visible(timeout=5000):
+        raise Exception("Could not find prompt input area.")
         
     prompt_input.fill(instruction)
+    page.wait_for_timeout(500)
     prompt_input.press("Enter")
     
     # 4. Wait for generation
-    _wait_for_generation(page)
+    all_images = _wait_for_generation(page, initial_count)
     
     # 5. Extract edited image
-    images = page.locator("img").all()
-    if images:
-        img_element = images[-1]
+    if all_images:
+        img_element = all_images[-1]
         output_path = f"/tmp/flow_edit_{int(time.time())}.png"
         img_element.screenshot(path=output_path)
         return output_path, "Edited successfully"

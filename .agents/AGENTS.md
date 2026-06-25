@@ -1,0 +1,1 @@
+Когда вносишь изменения в код, ОБЯЗАТЕЛЬНО делай git commit и git push из папки custom_nodes/ComfyUI-GoogleFlow, а затем сразу же делай git pull в папке /Users/andy/Documents/GitHub/comfy-flow, чтобы синхронизировать обе папки.
